@@ -1,5 +1,7 @@
 ### 神策数据（SensorsAnalyticsSDK）iOS SDK源码粗略分析
 
+[TOC]
+
 #### 一、注册SDK
 1. serverURL为数据上报地址，当debugMode不为DebugOff时，会自动在url后面添加"/debug";
 2. launchOptions为app启动参数，用于记录app是否为被动启动（远程通知启动，位置变动启动），当是被动启动时，本次启动后的b上报事件$app_state参数为background;
@@ -92,7 +94,7 @@ $latitude，$longitude：经纬度
 3. 上传数据处理：将数组元素转换为字符串以逗号分割，使用gzip进行压缩，base64Encode，上传格式`@"crc=%d&gzip=1&data_list=%@", hashCode, b64String`，并加上request需要补充的User-Agent、Cookie，Header字段，队列中发起上传，使用信号量同步等待上传结果；
 4. 如果当前网络符合上传条件，`DebugMode != SensorsAnalyticsDebugOff`（非生产环境）是实时上传（1条为单位），所以是，生产环境50条一组上传，上传完为止，上传成功即删除已上传的统计数据；
 
-#### 用户对象：SensorsAnalyticsPeople
+#### 三、用户对象：SensorsAnalyticsPeople
 用户属性的增删改也是通过打点事件来向服务端传递，没有event字段，只有属性参数和事件类型，且事件类型穷举如下：
 
 - "profile_set"   //设置用户的属性的内容
@@ -104,14 +106,14 @@ $latitude，$longitude：经纬度
 
 ```
 
-#### 远程控制：SASDKRemoteConfig
+#### 四、远程控制：SASDKRemoteConfig
 ```
  - (void)requestFunctionalManagermentConfigWithCompletion:(void(^)(BOOL success, NSDictionary*configDict )) completion;
 ```
 当App进入后台时会请求`${serverURL}/config/iOS.conf?v=${version}` 版本参数`v`可选配置，更新远程配置后存储在本地，用户没有配置远程控制选项，服务端默认返回{"disableSDK":false,"disableDebugMode":false}；
 > 可以远程开关SDK统计、关闭调试模式、修改收集自动统计App生命周期事件的类型；
 
-#### SDK文件一览
+#### 五、SDK文件一览
 command: "tree -I "*.h""
 
 ```
