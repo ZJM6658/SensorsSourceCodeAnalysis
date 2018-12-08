@@ -2,30 +2,29 @@
 
 [TOC]
 
-#### 一、注册SDK
-1. serverURL为数据上报地址，当debugMode不为DebugOff时，会自动在url后面添加"/debug";
-2. launchOptions为app启动参数，用于记录app是否为被动启动（远程通知启动，位置变动启动），当是被动启动时，本次启动后的b上报事件$app_state参数为background;
-3. debugMode为调试模式,三种模式含义可见枚举值说明;
-4. 设置一些公共属性（如应用名、渠道等）；
-5. enableAutoTrack函数供使用者选择是否自动收集一些app生命周期事件；
-6. addWebViewUserAgentSensorsDataFlags用于打通app与H5，在userAgent后加上 /sa-sdk-ios/sensors-verify/${host}?${project}供H5端判断在App内，host和projectc都从serverURL从获得;
+#### 一、注册SDK参数解析
+1. `serverURL`为数据上报地址，当debugMode不为DebugOff时，会自动在url后面添加"/debug";
+2. `launchOptions`为app启动参数，用于记录app是否为被动启动（远程通知启动，位置变动启动），当app被动启动时，本次启动后的b上报事件$app_state参数为background;
+3. `debugMode`为调试模式,三种模式含义可见枚举值说明;
+4. `registerSuperProperties`设置一些公共属性（如应用名、渠道等）；
+5. `enableAutoTrack`函数供使用者选择是否自动收集一些app生命周期事件；
+6. `addWebViewUserAgentSensorsDataFlags`用于打通app与H5，在userAgent后加上` /sa-sdk-ios/sensors-verify/${host}?${project}`供H5端判断在App内，host和projectc都从serverURL从获得;
 
 #### 二、从打一个点开始
 > 核心函数
 ```
-
- /**
+/**
 * @param event             event的名称
 * @param propertyDict  event的属性
 * @param type               event的类型（此参数并未暴露给开发者，开发者打点事件类型均为“track”）
 */
- - (void)track:(NSString *)event withProperties:(NSDictionary *)propertieDict withType:(NSString *)type;
-
+- (void)track:(NSString *)event withProperties:(NSDictionary *)propertieDict withType:(NSString *)type;
 ```
 
-此方法做了哪些事情：
-* 数据收集准备
-1. 构建libProperties，此对象包含
+> 调用此函数时做了哪些事情：
+
+##### 数据收集准备
+###### 1. 构建libProperties，此对象包含
 
 ```
 {
@@ -35,9 +34,9 @@
 "$lib_method":"code",
 "$lib_detail":lib_detail  // 事件触发的类和函数（$AppClick和$AppViewScreen事件的”$screen_name"）
 }
-
 ```
-2. 构建行为数据properties，此对象包含
+
+###### 2. 构建行为数据properties，此对象包含
 
 > 下面这些Map中的值
 
@@ -48,9 +47,7 @@
 
 > 其他添加属性
 
-
 ```
-
 $network_type：网络类型；
 $wifi：是否wifi；
 event_duration：事件时长（可选，开发者进行统计时长的事件才有，默认AppEnd事件会统计使用时长）；
@@ -58,17 +55,16 @@ $is_first_day：是否首日访问
 $app_state：被动启动时值为background
 $screen_orientation：设备方向
 $latitude，$longitude：经纬度
-
 ````
 
-备注：
+> 备注
+
 - 如果是打点事件`(type:track)`或注册事件`(type:track_signup)`，需要将各种公共属性按照优先级从低到高，依次是`automaticProperties, superProperties,dynamicSuperPropertiesDict,propertieDict`组装;
 - 数据交付前为了避免传入参数`propertieDict`中有`$device_id`字段，防止用户故意修改修正，进行了纠正;
 
-3.最终提交数据Map格式：
+###### 3. 最终提交数据Map格式
 
 ```
-
 {
 "event":"event",  // 事件名
 "properties":p, //事件核心参数都在这里
@@ -81,14 +77,13 @@ $latitude，$longitude：经纬度
 "project":"xxx",  //从传入参数propertieDict中取得（不设置则没有）
 "token":"token", //从传入参数propertieDict中取得（不设置则没有）
 }
-
 ```
 
-* 数据库存储
+##### 数据库存储
 1. 检查存储限制，默认本地最多存10000条，超过则删除前100条；
 2. 通过JSONUtil将本条数据转换为Data后插入sqlite数据库;
 
-* 上传服务器
+##### 上传服务器
 1. 当`DebugMode != SensorsAnalyticsDebugOff`（非生产环境）或者事件类型为$sign_up事件时，马上上传服务器，其他情况则>=100条数据未上传时上传服务器；
 2. 当App进入后台时也会将开启上传队列，同时通过`SQLite Vacuum`缩减表格文件空洞数据的空间
 3. 上传数据处理：将数组元素转换为字符串以逗号分割，使用gzip进行压缩，base64Encode，上传格式`@"crc=%d&gzip=1&data_list=%@", hashCode, b64String`，并加上request需要补充的User-Agent、Cookie，Header字段，队列中发起上传，使用信号量同步等待上传结果；
@@ -104,11 +99,11 @@ $latitude，$longitude：经纬度
 - "profile_append"    //向一个 NSSet 或者 NSArray 类型的 value 添加一些值
 - "profile_delete" //删除当前这个用户的所有记录
 
-```
 
 #### 四、远程控制：SASDKRemoteConfig
+
 ```
- - (void)requestFunctionalManagermentConfigWithCompletion:(void(^)(BOOL success, NSDictionary*configDict )) completion;
+- (void)requestFunctionalManagermentConfigWithCompletion:(void(^)(BOOL success, NSDictionary*configDict )) completion;
 ```
 当App进入后台时会请求`${serverURL}/config/iOS.conf?v=${version}` 版本参数`v`可选配置，更新远程配置后存储在本地，用户没有配置远程控制选项，服务端默认返回{"disableSDK":false,"disableDebugMode":false}；
 > 可以远程开关SDK统计、关闭调试模式、修改收集自动统计App生命周期事件的类型；
@@ -163,5 +158,5 @@ command: "tree -I "*.h""
 └── UIViewController+AutoTrack
 ```
 
-iOS开发者先看看官方使用说明：https://www.sensorsdata.cn/manual/ios_sdk.html
+iOS开发者先看看神策官方[iOS使用说明](https://www.sensorsdata.cn/manual/ios_sdk.html)
 
